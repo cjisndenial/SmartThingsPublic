@@ -166,7 +166,8 @@ def parse(String description)
 	def result = null
 	if (description == "updated") {
 	} else {
-		def zwcmd = zwave.parse(description, [0x40:1, 0x42:1, 0x43:1, 0x31:3])
+		log.debug "$device.displayName attempting to parse $description"
+		def zwcmd = zwave.parse(description, [0x42:1, 0x43:2, 0x31:3])
 		if (zwcmd) {
 			result = zwaveEvent(zwcmd)
 		} else {
