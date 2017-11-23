@@ -1,4 +1,17 @@
 /**
+ *  Remotec ZTS-110 Thermostat
+ *
+ *  Copyright 2017 CJ Saretto (CJS)
+ *  
+ *  - Merged code from Dennis Spanogle with current SmartThings zwave-thermostat template as of 11/23/2017
+ *  - 
+ *  
+ *  Copyright 2016 Dennis Spanogle (DES)
+ *
+ *  Modified Smart Things generic Z-Wave Thermostat
+ *    added 3 configuration parameters  (for now)
+ *    added battery status report (in case user selects battery)
+ 
  *  Copyright 2015 SmartThings
  *
  *  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
@@ -19,8 +32,12 @@ metadata {
 		capability "Refresh"
 		capability "Sensor"
 		capability "Health Check"
-		
+        capability "Battery"   // DES
+
 		attribute "thermostatFanState", "string"
+        attribute "Calibration", "number"   // DES added 
+        attribute "Autorpt_DegF", "number"  // DES added
+        attribute "Autorpt_Hr", "number"    // DES added
 
 		command "switchMode"
 		command "switchFanMode"
@@ -30,9 +47,21 @@ metadata {
 		command "raiseCoolSetpoint"
 		command "poll"
 
+		// CJS fingerprint matched to raw description from my Remotec ZTS-110 and in new zwave format
+		// raw descrition:  zw:L type:0806 mfr:5254 prod:0200 model:8031 ver:3.14 zwv:3.67 lib:06 cc:20,31,40,42,43,44,45,47,70,72,81,85,86
+		fingerprint mfr: "5254", prod: "0200", model: "8031"
+		
+		/* DES fingerprint matched to his (odd) raw descrption from the Remotec ZTS-110
+        // raw description for ZTS-110: 	0 0 0x1001 0 0 0 4 0x25 0x27 0x86 0x72
+		fingerprint deviceId: "0x1001"
+		fingerprint inClusters: "0x25,0x27,0x86,0x72", manufacturer: "Remotec", model: "ZTS-110"
+		*/
+
+		/* Original SmartThings fingerprint section
 		fingerprint deviceId: "0x08"
 		fingerprint inClusters: "0x43,0x40,0x44,0x31"
-		fingerprint mfr:"0039", prod:"0011", model:"0001", deviceJoinName: "Honeywell Z-Wave Thermostat"
+		fingerprint mfr:"0039", prod:"0011", model:"0001", deviceJoinName: "Honeywell Z-Wave Thermostat" 
+		*/
 	}
 
 	tiles {
@@ -137,7 +166,7 @@ def parse(String description)
 	def result = null
 	if (description == "updated") {
 	} else {
-		def zwcmd = zwave.parse(description, [0x42:1, 0x43:2, 0x31: 3])
+		def zwcmd = zwave.parse(description, [0x40:1, 0x42:1, 0x43:1, 0x31:3])
 		if (zwcmd) {
 			result = zwaveEvent(zwcmd)
 		} else {
@@ -536,6 +565,7 @@ def switchToMode(nextMode) {
 def getSupportedModes() {
 	def cmds = []
 	cmds << new physicalgraph.device.HubAction(zwave.thermostatModeV2.thermostatModeSupportedGet().format())
+	log.debug "getSupportedModes: $cmds"
 	sendHubCommand(cmds)
 }
 
@@ -570,6 +600,7 @@ def switchToFanMode(nextMode) {
 
 def getSupportedFanModes() {
 	def cmds = [new physicalgraph.device.HubAction(zwave.thermostatFanModeV3.thermostatFanModeSupportedGet().format())]
+	log.debug "getSupportedFanModes: $cmds"
 	sendHubCommand(cmds)
 }
 
