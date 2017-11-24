@@ -47,11 +47,12 @@ metadata {
 		command "raiseCoolSetpoint"
 		command "poll"
 
-		// CJS fingerprint matched to raw description from my Remotec ZTS-110 and in new zwave format
+		// CJS: fingerprint matched to raw description from my Remotec ZTS-110 and in new zwave format
 		// raw descrition:  zw:L type:0806 mfr:5254 prod:0200 model:8031 ver:3.14 zwv:3.67 lib:06 cc:20,31,40,42,43,44,45,47,70,72,81,85,86
 		fingerprint mfr: "5254", prod: "0200", model: "8031"
 		
-		/* DES fingerprint matched to his (odd) raw descrption from the Remotec ZTS-110
+		/* CJS: DES has a strange device fingerprint.  Maybe he has a ZTS-100 or a different revision of ZTS-110 
+		// DES replaced fingerprint to match the raw descrption from theRomotec ZTS-110
         // raw description for ZTS-110: 	0 0 0x1001 0 0 0 4 0x25 0x27 0x86 0x72
 		fingerprint deviceId: "0x1001"
 		fingerprint inClusters: "0x25,0x27,0x86,0x72", manufacturer: "Remotec", model: "ZTS-110"
@@ -167,6 +168,16 @@ def parse(String description)
 	if (description == "updated") {
 	} else {
 		log.debug "$device.displayName attempting to parse $description"
+		
+		// CJS:  The ZTS-110 returns some invalid zwave cmd responses.  Fixing those here.
+		if (description.endswith("command: 4005, payload: 2F")){
+			// Supported modes bitmask MUST NEVER contain 0010 0000, but ZTS-110 sends the bit in response.
+			description.replace("payload: 2F", "payload: 0F") 
+		} 
+		// Command 4303 (Setpoint Report) sometimes sends bad data.  Other times it reports fine.  Cannot fix.
+		// Command 3105 (Temperature Sensor Report) sometimes sends bad data.  Other times it reports fine.  Cannot fix.
+		// Command 5303 (Schedule Report) reports very occasionaly and fails to parse. Ignoring as thermostat schedule is not relevant when zwave control is enabled.
+				
 		def zwcmd = zwave.parse(description, [0x42:1, 0x43:2, 0x31:3])
 		if (zwcmd) {
 			result = zwaveEvent(zwcmd)
@@ -307,6 +318,7 @@ def zwaveEvent(physicalgraph.zwave.commands.thermostatfanmodev3.ThermostatFanMod
 }
 
 def zwaveEvent(physicalgraph.zwave.commands.thermostatmodev2.ThermostatModeSupportedReport cmd) {
+	log.debug "WE ARE PARSING MODE SUPPORTED REPORT: $cmd"
 	def supportedModes = []
 	if(cmd.off) { supportedModes << "off" }
 	if(cmd.heat) { supportedModes << "heat" }
@@ -319,6 +331,8 @@ def zwaveEvent(physicalgraph.zwave.commands.thermostatmodev2.ThermostatModeSuppo
 }
 
 def zwaveEvent(physicalgraph.zwave.commands.thermostatfanmodev3.ThermostatFanModeSupportedReport cmd) {
+	
+	log.debug "WE ARE PARSING FAN MODE SUPPORTED REPORT: $cmd"
 	def supportedFanModes = []
 	if(cmd.auto) { supportedFanModes << "auto" }
 	if(cmd.circulation) { supportedFanModes << "circulate" }
