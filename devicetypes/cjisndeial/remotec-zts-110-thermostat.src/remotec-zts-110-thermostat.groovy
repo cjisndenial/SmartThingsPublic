@@ -128,28 +128,78 @@ metadata {
 		standardTile("refresh", "device.thermostatMode", width:2, height:1, inactiveLabel: false, decoration: "flat") {
 			state "default", action:"refresh.refresh", icon:"st.secondary.refresh"
 		}
+
+		// CJS will hide these tiles after debugging
+		valueTile("Calibration", "device.Calibration", decoration: "flat", width: 2, height: 1) {
+			state "Calibration", label:'Cal: ${currentValue}°'        
+		}
+		valueTile("Autorpt_Hr", "device.Autorpt_Hr", decoration: "flat", width: 2, height: 1) {
+			state "Autorpt_Hr", label:'Rpt: ${currentValue}hr'        
+		}        
+		valueTile("Autorpt_DegF", "device.Autorpt_DegF", decoration: "flat", width: 2, height: 1) {
+			state "Autorpt_DegF", label:'Rpt: ${currentValue}°F'      
+		} 
+
+		// DES added battery tile  
+		valueTile("battery", "device.battery", decoration: "flat", width: 2, height: 1) {
+			state "battery", label:'Bat: ${currentValue}%', unit:""
+		} 
+
 		main "temperature"
 		details(["temperature", "lowerHeatingSetpoint", "heatingSetpoint", "raiseHeatingSetpoint", "lowerCoolSetpoint",
 				"coolingSetpoint", "raiseCoolSetpoint", "mode", "fanMode", "thermostatOperatingState", "refresh"])
+	}
+
+	//  DES add preferences
+	//  ** Get inputs for the configuration (only 3 of the possible configurations are included at this time)
+	preferences {
+		//   parm 13 = calibration  -3,-2,-1,0,1,2, 3 Etc
+		input "cal", "number", title: "Calibration: -10°F to +10°F (0=default)",
+				description: "Offset -2,-1,0 (default),1,2 Etc", defaultValue: 0,
+				required: false  //, displayDuringSetup: true  // also displayed during edit in mobile app
+		//   parm 12 = autoreport time trigger:  0 = never, 1 = 30 min, 2 = 1 hr (default) 
+		input "RptTime", "number", title: "Auto Report Time: 0=Never, 1 to 16 half hrs  (2=default=1hr)",
+				description: "0=Never, 1=.5hr, 2=1hr (default), 3=1.5hr, .. max 16=8hr", defaultValue: 2,
+				required: false //, displayDuringSetup: true
+		//   parm 11 Trigger autoreport if room temp different from last report 
+		//          1 = 1 deg F,  2 = 2 degree F,  3 = 3,  4 = 4 deg F = default   Set to 1
+		input "RptDelta", "number", title: "Auto Report °F Change: 0=Never, 1°F to 8°F (4=default)",
+				description: "0=Never, 1=1°F, 2=2°F, 3=3°F, 4=4°F (default), .. max8=8°F", defaultValue: 4,
+				required: false  //, displayDuringSetup: true
 	}
 }
 
 def installed() {
 	// Configure device
-	def cmds = [new physicalgraph.device.HubAction(zwave.associationV1.associationSet(groupingIdentifier:1, nodeId:[zwaveHubNodeId]).format()),
+	// CJS the ZTS-110 auto-reports on configuration group 3, so changing smartthings default of 1 to 3
+	def cmds = [new physicalgraph.device.HubAction(zwave.associationV1.associationSet(groupingIdentifier:3, nodeId:[zwaveHubNodeId]).format()),
 			new physicalgraph.device.HubAction(zwave.manufacturerSpecificV2.manufacturerSpecificGet().format())]
 	sendHubCommand(cmds)
 	runIn(3, "initialize", [overwrite: true])  // Allow configure command to be sent and acknowledged before proceeding
 }
 
 def updated() {
+	// DES ensured settings are in bounds before being set
+	log.trace "Read Settings: ${settings}"
+    if(settings.cal > 10){settings.cal = 10}  // calibration must be between -10 ann +10
+    if(settings.cal < -10){settings.cal = -10}
+    if(settings.RptTime > 16){settings.RptTime = 16} // Every 8 hours is max
+    if(settings.RptTime <  0){settings.RptTime = 0}   // Note 0 disables auto report by time
+    if(settings.RptDelta > 8){settings.RptDelta = 8}  // delta of 8 degrees is max
+    if(settings.RptDelta < 0){settings.RptDelta = 0}  // Note 0 disables auto report if different than last  
+    log.trace "Settings after bounds validation: ${settings}"
+	
+	// CJS ensuring DES configuration writes happen, merged with new smartthings updated() code
+	def cmds = []
 	// If not set update ManufacturerSpecific data
 	if (!getDataValue("manufacturer")) {
-		sendHubCommand(new physicalgraph.device.HubAction(zwave.manufacturerSpecificV2.manufacturerSpecificGet().format()))
-		runIn(2, "initialize", [overwrite: true])  // Allow configure command to be sent and acknowledged before proceeding
-	} else {
-		initialize()
-	}
+		cmds << new physicalgraph.device.HubAction(zwave.manufacturerSpecificV2.manufacturerSpecificGet().format())
+	} 
+	cmds << new physicalgraph.device.HubAction(zwave.configurationV1.configurationSet(parameterNumber: 13, size: 1, scaledConfigurationValue: settings.cal ).format())
+    cmds << new physicalgraph.device.HubAction(zwave.configurationV1.configurationSet(parameterNumber: 12, size: 1, scaledConfigurationValue: settings.RptTime ).format())
+    cmds << new physicalgraph.device.HubAction(zwave.configurationV1.configurationSet(parameterNumber: 11, size: 1, scaledConfigurationValue: settings.RptDelta ).format())
+	sendHubCommand(cmds)
+	runIn(4, "initialize", [overwrite: true])  // Allow configure command to be sent and acknowledged before proceeding
 }
 
 def initialize() {
@@ -169,6 +219,7 @@ def parse(String description)
 	} else {
 		// CJS:  The ZTS-110 returns some invalid zwave cmd responses.  Fixing those here.
         if (description.contains("command: 4005, payload: 2F")){
+			// BUG: Should be using endsWith instead of contains, but can't get it to work.
 			// Supported modes bitmask MUST NEVER contain 0010 0000, but ZTS-110 sends the bit in response.
 			log.debug "FOUND BAD MODE SUPPORTED RESPONSE: $description"
             description = description.replace("payload: 2F", "payload: 0F 00")
@@ -177,8 +228,10 @@ def parse(String description)
 		// Command 4303 (Setpoint Report) sometimes sends bad data.  Other times it reports fine.  Cannot fix.
 		// Command 3105 (Temperature Sensor Report) sometimes sends bad data.  Other times it reports fine.  Cannot fix.
 		// Command 5303 (Schedule Report) reports very occasionaly and fails to parse. Ignoring as thermostat schedule is not relevant when zwave control is enabled.
-				
-		def zwcmd = zwave.parse(description, [0x42:1, 0x43:2, 0x31:3])
+
+		// DES added 0x70: COMMAND_CLASS_CONFIGURATION so this will process configuration reports
+   		// DES added 0x80: COMMAND_CLASS_BATTERY so this will process battery reports		
+		def zwcmd = zwave.parse(description, [0x42:1, 0x43:2, 0x31:3, 0x70:1, 0x80:1])
 		if (zwcmd) {
 			result = zwaveEvent(zwcmd)
 		} else {
@@ -192,6 +245,50 @@ def parse(String description)
 }
 
 // Event Generation
+// DES add battery report handling
+def zwaveEvent(physicalgraph.zwave.commands.batteryv1.BatteryReport cmd) {
+	def map = [ name: "battery", unit: "%" ]
+	if (cmd.batteryLevel == 0xFF) {
+		map.value = 1
+		map.descriptionText = "${device.displayName} Low Battery"
+		map.isStateChange = true
+	} else {
+		map.value = cmd.batteryLevel
+	}
+	state.lastbatt = now()
+	log.debug "Got Battery Status: ${map}"
+	sendEvent(map)
+}
+
+// DES add configuration report handling
+def zwaveEvent(physicalgraph.zwave.commands.configurationv1.ConfigurationReport cmd) {
+	def map = [:]
+	def value = cmd.configurationValue[0]
+	switch (cmd.parameterNumber) {
+		case 11:
+			map.name = "Autorpt_DegF"
+			if (value < 0){value = 0}
+            if (value > 8){value = 8}
+			map.value = value
+			break
+		case 12:
+			map.name = "Autorpt_Hr"
+            if (value < 0){value = 0}   // DES These probably redundant
+            if (value > 16){value = 16}
+            map.value = value/2    // report in hours instead of half hours as entered.
+			break
+		case 13:
+			map.name = "Calibration"
+			if (value > 128){
+				value = value - 256            
+            }
+			map.value = value
+			break
+	}
+    log.debug "Got Configuration Status: ${map.value}"
+	sendEvent(map)
+}
+
 def zwaveEvent(physicalgraph.zwave.commands.thermostatsetpointv2.ThermostatSetpointReport cmd) {
 	def cmdScale = cmd.scale == 1 ? "F" : "C"
 	def setpoint = getTempInLocalScale(cmd.scaledValue, cmdScale)
@@ -388,6 +485,11 @@ def pollDevice() {
 	cmds << new physicalgraph.device.HubAction(zwave.thermostatOperatingStateV1.thermostatOperatingStateGet().format())
 	cmds << new physicalgraph.device.HubAction(zwave.thermostatSetpointV1.thermostatSetpointGet(setpointType: 1).format())
 	cmds << new physicalgraph.device.HubAction(zwave.thermostatSetpointV1.thermostatSetpointGet(setpointType: 2).format())
+	// CJS configuration gets from DES moved here 
+	cmds << new physicalgraph.device.HubAction(zwave.configurationV1.configurationGet(parameterNumber: 13).format()) 
+    cmds << new physicalgraph.device.HubAction(zwave.configurationV1.configurationGet(parameterNumber: 12).format())
+    cmds << new physicalgraph.device.HubAction(zwave.configurationV1.configurationGet(parameterNumber: 11).format())
+	cmds << new physicalgraph.device.HubAction(zwave.batteryV1.batteryGet().format())
 	sendHubCommand(cmds)
 }
 
