@@ -167,12 +167,12 @@ def parse(String description)
 	def result = null
 	if (description == "updated") {
 	} else {
-		log.debug "$device.displayName attempting to parse $description"
-		
 		// CJS:  The ZTS-110 returns some invalid zwave cmd responses.  Fixing those here.
-		if (description.endswith("command: 4005, payload: 2F")){
+        if (description.contains("command: 4005, payload: 2F")){
 			// Supported modes bitmask MUST NEVER contain 0010 0000, but ZTS-110 sends the bit in response.
-			description.replace("payload: 2F", "payload: 0F") 
+			log.debug "FOUND BAD MODE SUPPORTED RESPONSE: $description"
+            description = description.replace("payload: 2F", "payload: 0F 00")
+            log.debug "MODIFIED MODE SUPPORTED RESPONSE: $description"
 		} 
 		// Command 4303 (Setpoint Report) sometimes sends bad data.  Other times it reports fine.  Cannot fix.
 		// Command 3105 (Temperature Sensor Report) sometimes sends bad data.  Other times it reports fine.  Cannot fix.
