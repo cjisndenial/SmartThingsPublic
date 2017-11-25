@@ -203,8 +203,8 @@ def updated() {
     
     // Ensure device settings are in bounds before being set.  If not, return to defaults.
 	log.trace "Read Settings: ${settings}"
-    //if(settings.swing > 4 || settings.swing < 1) {settings.swing = 2}  // swing must be between 1 and 4, default 2
-    //if(settings.differential > 4 || settings.differential < 1) {settings.differential = 2}  // differential must be between 1 and 4, default 2
+    if(settings.swing > 4 || settings.swing < 1) {settings.swing = 2}  // swing must be between 1 and 4, default 2
+    if(settings.differential > 4 || settings.differential < 1) {settings.differential = 2}  // differential must be between 1 and 4, default 2
     if(settings.cal > 10 || settings.cal < -10) {settings.cal = 0}  // calibration must be between -10 and +10, default 0
     if(settings.RptTime > 16 || settings.RptTime < 0) {settings.RptTime = 2} // report time must be between 0 and 16, default 2
     if(settings.RptDelta > 8 || settings.RptDelta < 0) {settings.RptDelta = 4}  // report temp delta must be between 0 and 8, default 4
