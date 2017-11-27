@@ -202,7 +202,9 @@ def updated() {
 	log.trace "updated()"
     
     // Ensure device settings are in bounds before being set.  If not, return to defaults.
-	log.trace "Read Settings: ${settings}"
+	// BUG: This should be unnecesary now that bounds enforcement was added to the setting UI controls.
+    // BUG: Probably should modify this code to see if SETTINGS have changed from STATE, ensure STATE is valid, then fire commands.
+    log.trace "Read Settings: ${settings}"
     if(settings.swing > 4 || settings.swing < 1) {settings.swing = 2}  // swing must be between 1 and 4, default 2
     if(settings.differential > 4 || settings.differential < 1) {settings.differential = 2}  // differential must be between 1 and 4, default 2
     if(settings.cal > 10 || settings.cal < -10) {settings.cal = 0}  // calibration must be between -10 and +10, default 0
@@ -216,11 +218,14 @@ def updated() {
 	if (!getDataValue("manufacturer")) {
 		cmds << new physicalgraph.device.HubAction(zwave.manufacturerSpecificV2.manufacturerSpecificGet().format())
 	} 
+    // BUG:  This should be handled by Install(), but has to stay here in case the user changes out the DH in the IDE. 
     // CJS the ZTS-110 sends heat pump relay commands on group 1, which ST auto-associates to.  Removing that to eliminate unexpected BasicSet commands from logs
     cmds << new physicalgraph.device.HubAction(zwave.associationV1.associationRemove(groupingIdentifier:1, nodeId:[zwaveHubNodeId]).format())
 	// CJS the ZTS-110 auto-reports on configuration group 3.  Adding that.
     cmds << new physicalgraph.device.HubAction(zwave.associationV1.associationSet(groupingIdentifier:3, nodeId:[zwaveHubNodeId]).format())
+    
     // CJS send out settings
+    // BUG:  Want to only send these commands when SETTINGS has drifted from STATE, or STATE has become invalid.
 	cmds << new physicalgraph.device.HubAction(zwave.configurationV1.configurationSet(parameterNumber: 1, size: 1, scaledConfigurationValue: settings.swing ).format())
     cmds << new physicalgraph.device.HubAction(zwave.configurationV1.configurationSet(parameterNumber: 2, size: 1, scaledConfigurationValue: settings.differential ).format())
     cmds << new physicalgraph.device.HubAction(zwave.configurationV1.configurationSet(parameterNumber: 13, size: 1, scaledConfigurationValue: settings.cal ).format())
