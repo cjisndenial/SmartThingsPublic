@@ -25,7 +25,7 @@
  *
  */
 metadata {
-	definition (name: "Remotec ZTS-110 Thermostat", namespace: "cjisndeial", author: "CJ Saretto") {
+	definition (name: "Remotec ZTS-110 Thermostat", namespace: "cjisndenial", author: "CJ Saretto") {
 		capability "Actuator"
 		capability "Temperature Measurement"
 		capability "Thermostat"
