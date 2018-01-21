@@ -169,7 +169,7 @@ metadata {
 				range:"1..4", defaultValue: 2, required: true
 		//   parm 2 =   1,2,3,4
 		input "differential", "number", title: "Differential: °F from swing to engage 2nd stage heat",
-				range:"1..4", defaultValue: 2, required: true
+				range:"0..4", defaultValue: 2, required: true
 		//   parm 13 = calibration  -3,-2,-1,0,1,2, 3 Etc
 		input "cal", "number", title: "Calibration: Adjustment to reported temp in °F",
                 range:"-10..10", defaultValue: 0, required: true  
@@ -206,7 +206,7 @@ def updated() {
     // BUG: Probably should modify this code to see if SETTINGS have changed from STATE, ensure STATE is valid, then fire commands.
     log.trace "Read Settings: ${settings}"
     if(settings.swing > 4 || settings.swing < 1) {settings.swing = 2}  // swing must be between 1 and 4, default 2
-    if(settings.differential > 4 || settings.differential < 1) {settings.differential = 2}  // differential must be between 1 and 4, default 2
+    if(settings.differential > 4 || settings.differential < 0) {settings.differential = 2}  // differential must be between 1 and 4, default 2
     if(settings.cal > 10 || settings.cal < -10) {settings.cal = 0}  // calibration must be between -10 and +10, default 0
     if(settings.RptTime > 16 || settings.RptTime < 0) {settings.RptTime = 2} // report time must be between 0 and 16, default 2
     if(settings.RptDelta > 8 || settings.RptDelta < 0) {settings.RptDelta = 4}  // report temp delta must be between 0 and 8, default 4
@@ -241,11 +241,10 @@ def initialize() {
 	// Device-Watch simply pings if no device events received for 32min(checkInterval)
 	sendEvent(name: "checkInterval", value: 2 * 15 * 60 + 2 * 60, displayed: false, data: [protocol: "zwave", hubHardwareId: device.hub.hardwareID])
 	unschedule()
-	/* CJS Assuming all is working as expected, the every 5 min polling can go
-    if (getDataValue("manufacturer") != "Honeywell") {
-		runEvery5Minutes("poll")  // This is not necessary for Honeywell Z-wave, but could be for other Z-wave thermostats
-	}
-    */
+	// CJS Auto reporting on this thermostat reports current Temp but NOT current Setpoint.  
+    // Trying a full poll every 30 minutes to see if that keeps the setupoint up to date.     
+    runEvery30Minutes("poll")  // This is not necessary for Honeywell Z-wave, but could be for other Z-wave thermostats
+	
 	pollDevice()
 }
 
