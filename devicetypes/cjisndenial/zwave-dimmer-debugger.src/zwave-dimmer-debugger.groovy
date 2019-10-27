@@ -12,7 +12,7 @@
  *
  */
 metadata {
-	definition (name: "Z-Wave Dimmer Debugger", namespace: "smartthings", author: "cjisndenial", ocfDeviceType: "oic.d.light") {
+	definition (name: "Z-Wave Dimmer Debugger", namespace: "cjisndenial", author: "CJ Saretto", ocfDeviceType: "oic.d.light", runLocally: true, minHubCoreVersion: '000.019.00012', executeCommandsLocally: true) {
 		capability "Switch Level"
 		capability "Actuator"
 		capability "Health Check"
