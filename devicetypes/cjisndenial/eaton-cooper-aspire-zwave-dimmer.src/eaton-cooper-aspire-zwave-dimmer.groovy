@@ -129,8 +129,6 @@ def zwaveEvent(physicalgraph.zwave.commands.basicv1.BasicReport cmd) {
 	}
 }
 
-}
-
 def zwaveEvent(physicalgraph.zwave.commands.basicv1.BasicSet cmd) {
 	log.debug "cj BasicSet: $cmd"
 	state.lastBasicSetAt = now()
