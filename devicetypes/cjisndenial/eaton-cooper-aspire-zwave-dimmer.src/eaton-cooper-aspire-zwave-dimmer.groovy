@@ -117,15 +117,23 @@ def parse(String description) {
 }
 
 def zwaveEvent(physicalgraph.zwave.commands.basicv1.BasicReport cmd) {
-	//log.debug "cj BasicReport: $cmd"
-	log.debug "cj BasicReport (ignored): $cmd"
-    //dimmerEvents(cmd)
-    [:]
+	log.debug "cj BasicReport: $cmd"
+    
+	def timeNow = now()
+	if (!state.lastBasicSetAt || ((timeNow - state.lastBasicSetAt) >500)) {
+		log.debug "cj BasicSet not triggered in last 0.5 seconds.  Processing BasicReport."
+		dimmerEvents(cmd)
+	} else {
+		log.debug "cj BasicSet triggered in last 0.5 seconds.  Ignoring BasicReport."
+		[:]
+	}
+}
+
 }
 
 def zwaveEvent(physicalgraph.zwave.commands.basicv1.BasicSet cmd) {
 	log.debug "cj BasicSet: $cmd"
-	//sleep(500)
+	state.lastBasicSetAt = now()
     dimmerEvents(cmd)
 }
 
